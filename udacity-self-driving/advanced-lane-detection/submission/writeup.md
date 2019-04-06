@@ -1,9 +1,3 @@
-## Writeup Template
-
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
-
----
-
 **Advanced Lane Finding Project**
 
 The goals / steps of this project are the following:
@@ -17,111 +11,81 @@ The goals / steps of this project are the following:
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
-[//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
-
-## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
-
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
-
----
-
-### Writeup / README
-
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
-
-You're reading it!
+## Pipeline (single frame)
 
 ### Camera Calibration
 
-#### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
-
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
+The code for this step is contained in cells 1 through 3 in IPython notebook located in "./submission/P2.ipynb". 
 
 I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
 
 I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
 
-![alt text][image1]
+[image1]: ../test_images/test1.jpg "Original Image"
+[image2]: undistorted_test1.png "Undistorted Image"
 
-### Pipeline (single images)
+### Color Transformation
 
-#### 1. Provide an example of a distortion-corrected image.
+The code for this step is contained in cell 4. 
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+I start by converting the image to HLS color space. Then I choose to use S channel of HLS color space and Sobel X as the two variables to perform the thresholding. The thresholds I choose for these two variables are (170, 255) and (20, 100) respectively. 
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+After thresholding gradient X and color channel, I obtained this result:
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+[image3]: undistorted_test1.png "Original Image after Undistortion"
+[image4]: binary_img.png "Binary Image"
 
-![alt text][image3]
+### Perspective Transformation
 
-#### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
+The code for this step is contained in cell 5.
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+I start by defining the interested area which is a ladder-shaped area surround the lane. Then I get Matrix M and Minv using the `cv2.getPerspectiveTransform()` function. I applied M to `cv2.warpPerspective()` to get warped perspective and obtained the result:
 
-```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
-```
+[image5]: original_img_with_area.png "Undistorted Image with Interested Area"
+[image6]: warped_img_with_area.png "Undistorted Image with Interested Area (Bird-eye view)"
 
-This resulted in the following source and destination points:
+### Lane Boundary Detection
 
-| Source        | Destination   | 
-|:-------------:|:-------------:| 
-| 585, 460      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+The code for this step is contained in cells 6 through 9. Here I leverage 3 ways of sliding windows to draw the lane boundary. I use sliding window I in the pipeline. 
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+Sliding window I can be used when there's no fitted line data in the interation processing the previous frame. It starts from the basis of two peaks in the histogram and moves gradually upward containing the majority of points in the center of the window. 
 
-![alt text][image4]
+The result is:
 
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+[image7]: sliding_window_I.png "Lane Boundary Detected using Slide Window I"
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+### Curvature Computation and Vehicle Relative Position
 
-![alt text][image5]
+The code for this step is contained in cell 10. 
 
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+I compute curvature using the formula in https://www.intmath.com/applications-differentiation/8-radius-curvature.php. In order to get the distance in the real world, I multiple the ratio of 30/720 (meters per pixel in y dimension) for y values and 3.7/700 (meters per pixel in x dimension) for x values respectively. 
 
-I did this in lines # through # in my code in `my_other_file.py`
+I compute the vehicle position by calculating the difference between the center of two lane boundary and the center of the frame. 
 
-#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+### Lane Boundary Plot
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+The code for this step is contained in cells 11 through 12. 
 
-![alt text][image6]
+I start with fill the lane area with green color using `cv2.fillPoly()` function. Then I use the Minv got from the perspective transformation phase to revert the warped img back to original perspective. Finally, I use `cv2.addWeighted()` function to overlay the lane boundary image onto the original road image. The result is:
 
----
+[image8]: lane_boundary.png "Lane Boundary on Original Road Image"
+[image9]: lane_boundary_with_info.png "Lane Boundary with Information"
 
-### Pipeline (video)
+
+## Pipeline (video)
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
 Here's a [link to my video result](./project_video.mp4)
 
+[video1]: ./video_output.mp4 "video_output"
+[video2]: ./challenge_video_output.mp4 "challenge_video_output" 
+[video3]: ./harder_challenge_video_output.mp4 "harder_challenge_video_output"
 ---
 
 ### Discussion
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+When I was testing my pipeline on hard_challenge_video, I found the lane detection performed poorly. From my understanding, the reason is because the complex environment including shadows on the roads and constant turning of the road etc. These factors challenge the robustness of edge detection significantly. Hence, if I could explore this topic further, I will try to make a more adaptive edge detection in terms of dynamic parameters like thresholds. What's more, I would also want to apply deep learning to tackle this task. 
